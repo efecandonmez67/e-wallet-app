@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.ewalletapp.api.AuthApiService
 import com.example.ewalletapp.model.LoginRequest
 import com.example.ewalletapp.network.RetrofitClient
+import com.example.ewalletapp.network.TokenManager
 import kotlinx.coroutines.launch
 
 class AuthViewModel : ViewModel() {
@@ -24,9 +25,10 @@ class AuthViewModel : ViewModel() {
             try {
                 val request = LoginRequest(username, password)
                 val response = api.login(request)
-                loginResult.value = response
+                TokenManager.saveToken(response)
+                loginResult.value = "login successful!!"
             } catch (e: Exception) {
-                loginResult.value = "Hata: ${e.message}"
+                loginResult.value = "error: ${e.message}"
             } finally {
                 isLoading.value = false
             }

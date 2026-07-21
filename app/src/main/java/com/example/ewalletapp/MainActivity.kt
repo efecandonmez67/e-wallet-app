@@ -7,6 +7,7 @@ import androidx.activity.viewModels
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.ewalletapp.network.TokenManager
 import com.example.ewalletapp.screens.HomeScreen
 import com.example.ewalletapp.screens.LoginScreen
 import com.example.ewalletapp.ui.theme.EWalletAppTheme
@@ -18,6 +19,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        TokenManager.init(this)
         setContent {
             EWalletAppTheme {
                 val navController = rememberNavController()
