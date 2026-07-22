@@ -100,19 +100,30 @@ fun HomeScreen(
             Text(text = "Son Hareketler", fontSize = 20.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
 
-            val mockTransactions = listOf(
-                TransactionMock("Ahmet Yılmaz", "Para Gönderildi", "-₺150.00", false),
-                TransactionMock("Netflix", "Abonelik", "-₺119.99", false),
-                TransactionMock("Maaş Ödemesi", "Gelen Transfer", "+₺45,000.00", true),
-                TransactionMock("Market Alışverişi", "Kart İşlemi", "-₺450.50", false)
-            )
+            val history = viewModel.transactionHistory.value
+            val isHistoryLoading = viewModel.isHistoryLoading.value
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(mockTransactions) { transaction ->
-                    TransactionItem(transaction)
+            if (isHistoryLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = PrimaryBlue)
+            } else if (history.isEmpty()) {
+                Text("Henüz bir işlem bulunmuyor.", color = Color.Gray, modifier = Modifier.align(Alignment.CenterHorizontally))
+            } else {
+                // GERÇEK VERİLERLE ÇALIŞAN LAZY COLUMN
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(history) { transaction ->
+                        val isIncome = transaction.receiverAccountId == account?.id
+                        val formattedDate = transaction.transactionDate?.take(10) ?: "Tarih Yok"
+
+                        TransactionItem(
+                            title = if (isIncome) "Gelen Transfer" else "Giden Transfer",
+                            subtitle = formattedDate,
+                            amount = if (isIncome) "+₺${transaction.amount}" else "-₺${transaction.amount}",
+                            isIncoming = isIncome
+                        )
+                    }
                 }
             }
         }
@@ -150,7 +161,7 @@ fun BalanceCard(isLoading: Boolean, balance: Double?, errorMessage: String) {
             if (isLoading) {
                 CardShimmerEffect()
             } else if (errorMessage.isNotEmpty()) {
-                Text("Bağlantı Hatası", color = Color(0xFFFFCDD2), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text(errorMessage, color = Color(0xFFFFCDD2), fontSize = 16.sp, fontWeight = FontWeight.Bold)
             } else {
                 Text("₺${balance ?: "0.00"}", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
             }
@@ -326,8 +337,9 @@ fun ActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     }
 }
 
+// YENİDEN DÜZENLENEN TRANSACTION ITEM
 @Composable
-fun TransactionItem(transaction: TransactionMock) {
+fun TransactionItem(title: String, subtitle: String, amount: String, isIncoming: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -342,24 +354,24 @@ fun TransactionItem(transaction: TransactionMock) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier.size(48.dp).clip(CircleShape)
-                        .background(if (transaction.isIncoming) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)),
+                        .background(if (isIncoming) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (transaction.isIncoming) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward,
+                        imageVector = if (isIncoming) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward,
                         contentDescription = null,
-                        tint = if (transaction.isIncoming) Color(0xFF4CAF50) else Color(0xFFF44336)
+                        tint = if (isIncoming) Color(0xFF4CAF50) else Color(0xFFF44336)
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(text = transaction.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Text(text = transaction.subtitle, fontSize = 14.sp, color = TextSecondary)
+                    Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text(text = subtitle, fontSize = 14.sp, color = TextSecondary)
                 }
             }
             Text(
-                text = transaction.amount, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                color = if (transaction.isIncoming) Color(0xFF4CAF50) else TextPrimary
+                text = amount, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                color = if (isIncoming) Color(0xFF4CAF50) else TextPrimary
             )
         }
     }
@@ -391,5 +403,3 @@ fun FintekBottomNavigationBar() {
         )
     }
 }
-
-data class TransactionMock(val title: String, val subtitle: String, val amount: String, val isIncoming: Boolean)
