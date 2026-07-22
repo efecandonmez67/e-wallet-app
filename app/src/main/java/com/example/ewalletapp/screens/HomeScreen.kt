@@ -1,5 +1,6 @@
 package com.example.ewalletapp.screens
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +16,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -22,17 +25,24 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.ewalletapp.ui.theme.*
+import com.example.ewalletapp.viewmodel.HomeViewModel
+import com.example.ewalletapp.viewmodel.TransferViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController) {
-    // Bottom Sheet (Alttan açılan menü) durumunu kontrol eden değişken
+fun HomeScreen(
+    navController: NavController,
+    viewModel: HomeViewModel = viewModel()
+) {
     var showTransferSheet by remember { mutableStateOf(false) }
-
-    // Titreşim (Haptic Feedback) motorunu çağırıyoruz
     val haptic = LocalHapticFeedback.current
+
+    val isLoading = viewModel.isLoading.value
+    val account = viewModel.account.value
+    val errorMessage = viewModel.errorMessage.value
 
     Scaffold(
         bottomBar = { FintekBottomNavigationBar() },
@@ -48,7 +58,7 @@ fun HomeScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "Merhaba, Efe Can 👋",
+                text = "Merhaba 👋",
                 fontSize = 18.sp,
                 color = TextSecondary,
                 fontWeight = FontWeight.Medium
@@ -56,11 +66,14 @@ fun HomeScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            BalanceCard()
+            BalanceCard(
+                isLoading = isLoading,
+                balance = account?.balance,
+                errorMessage = errorMessage
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Hızlı İşlemler
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -69,8 +82,8 @@ fun HomeScreen(navController: NavController) {
                     icon = Icons.Rounded.SwapHoriz,
                     label = "Para Transferi",
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Tıklama titreşimi
-                        showTransferSheet = true // Menüyü aç
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showTransferSheet = true
                     }
                 )
                 ActionButton(
@@ -78,7 +91,6 @@ fun HomeScreen(navController: NavController) {
                     label = "Faturalar",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        // Fatura sayfasına yönlendirme eklenebilir
                     }
                 )
             }
@@ -105,16 +117,17 @@ fun HomeScreen(navController: NavController) {
             }
         }
 
-        // Eğer butona basıldıysa Alttan Açılan Menüyü (Bottom Sheet) Göster
         if (showTransferSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showTransferSheet = false },
                 containerColor = Color.White
             ) {
                 TransferBottomSheetContent(
+                    senderAccountId = account?.id,
                     onOptionSelected = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         showTransferSheet = false
+                        viewModel.fetchMyAccount()
                     }
                 )
             }
@@ -122,23 +135,159 @@ fun HomeScreen(navController: NavController) {
     }
 }
 
-// --- YENİ: Alttan Açılan Menü İçeriği ---
 @Composable
-fun TransferBottomSheetContent(onOptionSelected: () -> Unit) {
+fun BalanceCard(isLoading: Boolean, balance: Double?, errorMessage: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = PrimaryBlue),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text("Toplam Bakiye", color = Color.White.copy(alpha = 0.8f), fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (isLoading) {
+                CardShimmerEffect()
+            } else if (errorMessage.isNotEmpty()) {
+                Text("Bağlantı Hatası", color = Color(0xFFFFCDD2), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            } else {
+                Text("₺${balance ?: "0.00"}", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Hesap No: 1045 8792 34", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+fun CardShimmerEffect() {
+    val shimmerColors = listOf(
+        Color.White.copy(alpha = 0.2f),
+        Color.White.copy(alpha = 0.5f),
+        Color.White.copy(alpha = 0.2f)
+    )
+
+    val transition = rememberInfiniteTransition(label = "")
+    val translateAnim = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = ""
+    )
+
+    val brush = Brush.linearGradient(
+        colors = shimmerColors,
+        start = Offset.Zero,
+        end = Offset(x = translateAnim.value, y = translateAnim.value)
+    )
+
+    Box(
+        modifier = Modifier
+            .width(180.dp)
+            .height(40.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(brush)
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TransferBottomSheetContent(
+    senderAccountId: Long?,
+    onOptionSelected: () -> Unit,
+    transferViewModel: TransferViewModel = viewModel()
+) {
+    var receiverIdText by remember { mutableStateOf("") }
+    var amountText by remember { mutableStateOf("") }
+
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    val isLoading = transferViewModel.isLoading.value
+    val statusMessage = transferViewModel.transferStatus.value
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(24.dp)
-            .padding(bottom = 32.dp)
+            .padding(bottom = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("Para Transferi", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(modifier = Modifier.height(24.dp))
 
-        BottomSheetOption(icon = Icons.Rounded.Person, title = "Kayıtlı Alıcıya Gönder", onClick = onOptionSelected)
-        Spacer(modifier = Modifier.height(16.dp))
-        BottomSheetOption(icon = Icons.Rounded.AccountBalance, title = "IBAN'a Gönder", onClick = onOptionSelected)
-        Spacer(modifier = Modifier.height(16.dp))
-        BottomSheetOption(icon = Icons.Rounded.ArrowCircleDown, title = "Para İste", onClick = onOptionSelected)
+        if (statusMessage != null) {
+            Text(
+                text = statusMessage,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (statusMessage.contains("Başarılı")) Color(0xFF4CAF50) else Color.Red
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    transferViewModel.resetStatus()
+                    onOptionSelected()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+            ) {
+                Text("Kapat")
+            }
+        } else {
+            OutlinedTextField(
+                value = receiverIdText,
+                onValueChange = {
+                    receiverIdText = it
+                    localError = null },
+                label = { Text("Alıcı Hesap ID") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = amountText,
+                onValueChange = { amountText = it
+                    localError = null},
+                label = { Text("Gönderilecek Tutar (₺)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (localError != null) {
+                Text(text = localError!!, color = Color.Red, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            Button(
+                onClick = {
+                    val receiverId = receiverIdText.toLongOrNull()
+                    val amount = amountText.toDoubleOrNull()
+
+                    if (receiverId == null || amount == null) {
+                        localError = "Lütfen geçerli değerler girin."
+                    } else if (senderAccountId == receiverId) {
+                        localError = "Kendinize para gönderemezsiniz!"
+                    } else if (amount <= 0) {
+                        localError = "Gönderilecek tutar 0'dan büyük olmalıdır."
+                    } else if (senderAccountId != null) {
+                        transferViewModel.sendMoney(senderAccountId, receiverId, amount)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                enabled = !isLoading
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Gönder", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 
@@ -159,8 +308,6 @@ fun BottomSheetOption(icon: ImageVector, title: String, onClick: () -> Unit) {
     }
 }
 
-// (Önceki kodda yer alan BalanceCard, ActionButton, TransactionItem ve FintekBottomNavigationBar fonksiyonları olduğu gibi kalacak. Sadece ActionButton'a onClick parametresi ekledik, aşağıda güncelini veriyorum)
-
 @Composable
 fun ActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -169,31 +316,13 @@ fun ActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
                 .size(60.dp)
                 .clip(CircleShape)
                 .background(Color.White)
-                .clickable { onClick() }, // Tıklanabilir yaptık
+                .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
             Icon(imageVector = icon, contentDescription = label, tint = PrimaryBlue, modifier = Modifier.size(28.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = label, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-fun BalanceCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = PrimaryBlue),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            Text("Toplam Bakiye", color = Color.White.copy(alpha = 0.8f), fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("₺44,279.51", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Hesap No: 1045 8792 34", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
-        }
     }
 }
 
